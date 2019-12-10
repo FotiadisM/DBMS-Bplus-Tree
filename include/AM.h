@@ -42,12 +42,22 @@ int AM_CloseIndex (
 );
 
 
-int AM_InsertEntry(
+int AM_InsertEntry (
   int fileDesc, /* αριθμός που αντιστοιχεί στο ανοιχτό αρχείο */
   void *value1, /* τιμή του πεδίου-κλειδιού προς εισαγωγή */
   void *value2 /* τιμή του δεύτερου πεδίου της εγγραφής προς εισαγωγή */
 );
 
+int getDataBlock(
+  int fileDesc,
+  int root,
+  int depth,
+  void* key
+);
+
+int getBlockNumber(char* data,
+  void* key
+);
 
 int AM_OpenIndexScan(
   int fileDesc, /* αριθμός που αντιστοιχεί στο ανοιχτό αρχείο */
