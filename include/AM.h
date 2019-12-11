@@ -52,11 +52,14 @@ int getDataBlock(
   int fileDesc,
   int root,
   int depth,
-  void* key
+  void* key,
+  int sizeOfKey
 );
 
-int getBlockNumber(char* data,
-  void* key
+int getBlockNumber(
+  char* data,
+  void* key,
+  int sizeOfKey
 );
 
 int AM_OpenIndexScan(

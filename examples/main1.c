@@ -18,9 +18,8 @@ char empAge[40];
 char empSal[40];
 char empDname[40];
 
-void insertEntries(int eNentry, int eAentry, int eSentry, int eDentry,
-		char* ename, int eage, float esal, char* edname, int recid) {
-	char errStr[40];
+void insertEntries(int eNentry, int eAentry, int eSentry, int eDentry, char* ename, int eage, float esal, char* edname, int recid) {
+	char errStr[400];
 
 	strcpy(errStr, "Error in AM_InsertEntry");
 
@@ -61,7 +60,7 @@ int main() {
 
 	int recordid = 1;
 
-	char errStr[200];
+	char errStr[400];
 
 	int* ivalue = NULL;
 	char* cvalue = NULL;
@@ -82,8 +81,7 @@ int main() {
 	 *  Δημιουργία ΒΔ που θα περιέχουν πληροφορίες για υπαλλήλους                   *
 	 ********************************************************************************/
 
-	if (AM_CreateIndex(empName, STRING, sizeof(empName) - 1, INTEGER,
-			sizeof(int)) != AME_OK) {
+	if (AM_CreateIndex(empName, STRING, sizeof(empName) - 1, INTEGER, sizeof(int)) != AME_OK) {
 		sprintf(errStr, "Error in AM_CreateIndex called on %s \n", empName);
 		AM_PrintError(errStr);
 	}
@@ -98,19 +96,18 @@ int main() {
 		AM_PrintError(errStr);
 	}
 
-	if (AM_CreateIndex(fltname, FLOAT, 39, STRING, 39) != AME_OK) {
-		sprintf(errStr, "Expected error in AM_CreateIndex called on %s \n",
-				fltname);
-		AM_PrintError(errStr);
-	} else {
-		sprintf(errStr, "Creating %s index should have failed \n", fltname);
-		AM_PrintError(errStr);
-	}
-
 	if (AM_CreateIndex(empDname, STRING, 10, FLOAT, sizeof(float)) != AME_OK) {
 		sprintf(errStr, "Error in AM_CreateIndex called on %s \n", empDname);
 		AM_PrintError(errStr);
 	}
+
+	// if (AM_CreateIndex(fltname, FLOAT, 39, STRING, 39) != AME_OK) {
+	// 	sprintf(errStr, "Expected error in AM_CreateIndex called on %s \n", fltname);
+	// 	AM_PrintError(errStr);
+	// } else {
+	// 	sprintf(errStr, "Creating %s index should have failed \n", fltname);
+	// 	AM_PrintError(errStr);
+	// }
 
 	/********************************************************************************
 	 *  ¶νοιγμα των τεσσάρων ΑΚ (με σκοπό την εισαγωγή εγγραφών)                    *
@@ -126,15 +123,16 @@ int main() {
 		AM_PrintError(errStr);
 	}
 
+	if ((eDentry = AM_OpenIndex(empDname)) < 0) {
+		sprintf(errStr, "Error in AM_OpenIndex called on %s \n", empDname);
+		AM_PrintError(errStr);
+	}
+	
 	if ((eSentry = AM_OpenIndex(empSal)) < 0) {
 		sprintf(errStr, "Error in AM_OpenIndex called on %s \n", empSal);
 		AM_PrintError(errStr);
 	}
 
-	if ((eDentry = AM_OpenIndex(empDname)) < 0) {
-		sprintf(errStr, "Error in AM_OpenIndex called on %s \n", empDname);
-		AM_PrintError(errStr);
-	}
 
 	/********************************************************************************
 	 *  Εισαγωγή των δυάδων (τιμή1, τιμή2) στα ΑΚ. Υπάρχουν 100 συνολικά εισαγωγές    *

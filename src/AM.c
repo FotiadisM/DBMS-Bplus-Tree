@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "bf.h"
 #include "AM.h"
 #include "defn.h"
@@ -17,7 +18,7 @@ int AM_errno = AME_OK;
 }
 
 void AM_Init() {
-	return;
+  BF_Init(LRU);
 }
 
 int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrType2, int attrLength2) {
@@ -32,10 +33,10 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
 
   CALL_BF(BF_AllocateBlock(fileDesc, mBlock));
   data = BF_Block_GetData(mBlock);
-  joker = 0;
   memset(data, 0, BF_BLOCK_SIZE); // optional
   memcpy(data, "B+", 2*sizeof(char));
-  memcpy(data + 2*sizeof(char), &joker, sizeof(int)); // blockNumber of root bock
+  memcpy(data + 2*sizeof(char), &joker, sizeof(int)); // blockNumber of the root block
+  joker = 0;
   memcpy(data + 2*sizeof(char) + sizeof(int), &joker, sizeof(int)); //storing the depth of the tree
   memcpy(data + 2*sizeof(char) + 2*sizeof(int), &attrType1, sizeof(char));
   memcpy(data + 3*sizeof(char) + 2*sizeof(int), &attrLength1, sizeof(int));
@@ -74,23 +75,25 @@ int AM_DestroyIndex(char *fileName) {
 int AM_OpenIndex (char *fileName) {
 
   int fileDesc;
-  char *data, *code;
+  char *data;
   BF_Block *mBlock;
   BF_Block_Init(&mBlock);
 
   CALL_BF(BF_OpenFile(fileName, &fileDesc));
-  BF_GetBlock(fileDesc, 0, mBlock);
+  CALL_BF(BF_GetBlock(fileDesc, 0, mBlock));
   data = BF_Block_GetData(mBlock);
-  memcpy(code, data, 2*sizeof(char));
-  if(strcmp(code, "B+")) {
+
+  if(strncmp(data, "B+", 2*sizeof(char))) {
     CALL_BF(BF_UnpinBlock(mBlock));
     BF_Block_Destroy(&mBlock);
+    printf("WRONG CODE\n");
     return AME_EOF;
   }
+
   CALL_BF(BF_UnpinBlock(mBlock));
   BF_Block_Destroy(&mBlock);
 
-  return AME_OK;
+  return fileDesc;
 }
 
 
@@ -104,27 +107,26 @@ int AM_CloseIndex (int fileDesc) {
 
 int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
 
-  int block_num, root;
+  int block_num, root, depth, sizeOfKey;
   char *data;
   BF_Block *mBlock;
   BF_Block_Init(&mBlock);
 
   CALL_BF(BF_GetBlock(fileDesc, 0, mBlock));
   data = BF_Block_GetData(mBlock);
-  // root* *(data + 2*sizeof(char));
+  root = *(data + 2*sizeof(char));
+  depth = *(data + 2*sizeof(char) + sizeof(int));
+  sizeOfKey = *(data + 3*sizeof(char) + 2*sizeof(int));
+  block_num = getDataBlock(fileDesc, root,  depth, value1, sizeOfKey);
   CALL_BF(BF_UnpinBlock(mBlock));
-
-  // CALL_BF(BF_GetBlock(fileDesc, 0, mBlock));
-  // data = BF_Block_GetData(mBlock);
-
-
 
   BF_Block_Destroy(&mBlock);
 
+  printf("In Insert\n");
   return AME_OK;
 }
 
-int getDataBlock(int fileDesc, int block_num, int depth, void* key) {
+int getDataBlock(int fileDesc, int block_num, int depth, void* key, int sizeOfKey) {
 
   char *data;
   BF_Block *mBlock;
@@ -133,7 +135,8 @@ int getDataBlock(int fileDesc, int block_num, int depth, void* key) {
   for(int i=0; i<= depth; i++) {
     CALL_BF(BF_GetBlock(fileDesc, block_num, mBlock));
     data = BF_Block_GetData(mBlock);
-    block_num = getBlockNumber(data, key);
+    block_num = getBlockNumber(data, key, sizeOfKey);
+    CALL_BF(BF_UnpinBlock(mBlock));
   }
 
   BF_Block_Destroy(&mBlock);
@@ -141,18 +144,23 @@ int getDataBlock(int fileDesc, int block_num, int depth, void* key) {
   return block_num;
 }
 
-int getBlockNumber(char* data, void* key) {
+int getBlockNumber(char* data, void* key, int sizeOfKey) {
 
-  int block_num, joker = *(data);
+  void* tmpKey;
+  int block_num;
   BF_Block* mBlock;
   BF_Block_Init(&mBlock);
 
-  for(int i=0; i<=joker; i++) {
-    
-    block_num = *(data + i*sizeof(key) + i*sizeof(int));
+  for(int i=0; i<=*(data); i++) {
+    block_num = *(data + (i + 1)*sizeof(int) + i*sizeOfKey);
+    if(i) {
+      tmpKey = *(data + (i + 2)*(sizeof(int) + i*sizeOfKey));
+    }
   }
 
   BF_Block_Init(&mBlock);
+
+  return block_num;
 }
 
 
@@ -172,9 +180,9 @@ int AM_CloseIndexScan(int scanDesc) {
 
 
 void AM_PrintError(char *errString) {
-  
+  printf("Eisai zoo exeis kanei lathos.\n");
 }
 
 void AM_Close() {
-  
+  BF_Close();
 }
