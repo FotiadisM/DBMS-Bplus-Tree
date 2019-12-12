@@ -53,14 +53,25 @@ int getDataBlock(
   int root,
   int depth,
   void* key,
+  char typeOfKey,
   int sizeOfKey
 );
 
 int getBlockNumber(
   char* data,
   void* key,
+  char typeOfKey,
   int sizeOfKey
 );
+
+int compareKeys(
+  void* key,
+  void* mKey,
+  char typeOfKey,
+  int sizeOfKey
+);
+
+int printBlock2(int fileDesc);
 
 int AM_OpenIndexScan(
   int fileDesc, /* αριθμός που αντιστοιχεί στο ανοιχτό αρχείο */

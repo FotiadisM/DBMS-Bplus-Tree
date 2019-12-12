@@ -3,6 +3,6 @@
 
 #define INTEGER 'i'
 #define FLOAT 'f'
-#define STRING 'c'
+#define STRING 'd'
 
 #endif /* DEFN_H_ */
