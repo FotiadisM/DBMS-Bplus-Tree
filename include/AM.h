@@ -26,26 +26,32 @@ int AM_CreateIndex(
   int attrLength2 /* μήκος δεύτερου πεδίου: 4 γιά 'i' ή 'f', 1-255 γιά 'c' */
 );
 
-
 int AM_DestroyIndex(
   char *fileName /* όνομα αρχείου */
 );
-
 
 int AM_OpenIndex (
   char *fileName /* όνομα αρχείου */
 );
 
-
 int AM_CloseIndex (
   int fileDesc /* αριθμός που αντιστοιχεί στο ανοιχτό αρχείο */
 );
-
 
 int AM_InsertEntry (
   int fileDesc, /* αριθμός που αντιστοιχεί στο ανοιχτό αρχείο */
   void *value1, /* τιμή του πεδίου-κλειδιού προς εισαγωγή */
   void *value2 /* τιμή του δεύτερου πεδίου της εγγραφής προς εισαγωγή */
+);
+
+void insertEntryAndSort (
+  char** data,
+  char typeOfKey,
+  int sizeOfKey,
+  char typeOfEntry,
+  int sizeOfEntry,
+  void* value1,
+  void* value2
 );
 
 int getDataBlock(
@@ -71,7 +77,13 @@ int compareKeys(
   int sizeOfKey
 );
 
-int printBlock2(int fileDesc);
+int printBlock2(
+  int fileDesc
+  // char typeOfKey,
+  // int sizeOfKey,
+  // char typeOfEntry,
+  // int sizeOfEntry
+);
 
 int AM_OpenIndexScan(
   int fileDesc, /* αριθμός που αντιστοιχεί στο ανοιχτό αρχείο */
