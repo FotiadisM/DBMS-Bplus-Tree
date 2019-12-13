@@ -23,7 +23,7 @@ void AM_Init() {
 
 int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrType2, int attrLength2) {
 
-  int fileDesc, joker = 1;
+  int fileDesc;
   char *data;
   BF_Block *mBlock;
   BF_Block_Init(&mBlock);
@@ -36,25 +36,22 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
 
   memset(data, 0, BF_BLOCK_SIZE);
   memcpy(data, "B+", 2*sizeof(char));
-  memcpy(data + 2*sizeof(char), &joker, sizeof(int)); // blockNumber of the root block
+  *(data + 2*sizeof(char)) = 1;
 
-  joker = 0;
-  memcpy(data + 2*sizeof(char) + sizeof(int), &joker, sizeof(int)); //storing the depth of the tree
+  *(data + 2*sizeof(char) + sizeof(int)) = 0;
   memcpy(data + 2*sizeof(char) + 2*sizeof(int), &attrType1, sizeof(char));
   memcpy(data + 3*sizeof(char) + 2*sizeof(int), &attrLength1, sizeof(int));
   memcpy(data + 3*sizeof(char) + 3*sizeof(int), &attrType2, sizeof(char));
   memcpy(data + 4*sizeof(char) + 3*sizeof(int), &attrLength2, sizeof(int));
 
-  joker = (BF_BLOCK_SIZE - 2*sizeof(int)) / (attrLength1 + attrLength2);
-  memcpy(data + 4*sizeof(char) + 4*sizeof(int), &joker, sizeof(int));
+  *(data + 4*sizeof(char) + 4*sizeof(int)) = (BF_BLOCK_SIZE - 2*sizeof(int)) / (attrLength1 + attrLength2);
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
 
   CALL_BF(BF_AllocateBlock(fileDesc, mBlock));
   data = BF_Block_GetData(mBlock);
-  joker = 2;
   memset(data, 0, BF_BLOCK_SIZE);
-  memcpy(data + sizeof(int), &joker, sizeof(int));
+  *(data + sizeof(int)) = 2;
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
 
@@ -108,7 +105,7 @@ int AM_CloseIndex (int fileDesc) {
 
 int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
 
-  int block_num, root, depth, sizeOfKey, sizeOfEntry, maxRecords, joker, count = 0;
+  int block_num, root, depth, sizeOfKey, sizeOfEntry, maxRecords, count = 0;
   char typeOfKey, typeOfEntry;
   char *data;
   BF_Block *mBlock;
@@ -128,9 +125,8 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
   block_num = getDataBlock(fileDesc, root,  depth, value1, typeOfKey, sizeOfKey);
   CALL_BF(BF_GetBlock(fileDesc, block_num, mBlock));
   data = BF_Block_GetData(mBlock);
-  joker = *data;
 
-  if(joker < maxRecords) {
+  if(*data < maxRecords) {
     insertEntryAndSort(&data, typeOfKey, sizeOfKey, typeOfEntry, sizeOfEntry, value1, value2);
   }
   else {
@@ -141,72 +137,67 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
   CALL_BF(BF_UnpinBlock(mBlock));
   BF_Block_Destroy(&mBlock);
 
-  // printBlock2(fileDesc);
+  printBlock2(fileDesc);
   return AME_OK;
 }
 
 void reBalance() {
-
+  
 }
 
 void insertEntryAndSort(char** data, char typeOfKey, int sizeOfKey, char typeOfEntry, int sizeOfEntry, void* value1, void* value2) {
 
   void* currKey;
-  int joker = **data;
 
-  for(int i=0; i < joker; i++) {
+  for(int i=0; i < **data; i++) {
     if(typeOfKey == STRING) {
       currKey = (char*)(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry));
       if(strcmp((char*)value1, currKey) < 0) {
-        for(int j=joker; j >= i; j--) {
+        for(int j=**data; j >= i; j--) {
             memcpy(*data + 2*sizeof(int) + j*(sizeOfKey + sizeOfEntry), *data + 2*sizeof(int) + (j-1)*(sizeOfKey + sizeOfEntry), sizeOfKey+sizeOfEntry);
         }
         memcpy(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry), (char*)value1, sizeOfKey);
         memcpy(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry) + sizeOfKey, value2, sizeOfEntry);
-        joker++;
-        memcpy(*data, &joker, sizeof(int));
+        **data = **data + 1;
         return;
       }
     }
     else if(typeOfKey == FLOAT) {
       currKey = (*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry));
       if(*(float*)value1 < *(float *)currKey) {
-        for(int j=joker; j >= i; j--) {
+        for(int j=**data; j >= i; j--) {
             memcpy(*data + 2*sizeof(int) + j*(sizeOfKey + sizeOfEntry), *data + 2*sizeof(int) + (j-1)*(sizeOfKey + sizeOfEntry), sizeOfKey+sizeOfEntry);
         }
         memcpy(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry), (float*)value1, sizeOfKey);
         memcpy(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry) + sizeOfKey, value2, sizeOfEntry);
-        joker++;
-        memcpy(*data, &joker, sizeof(int));
+        **data = **data + 1;
         return;
       }
     }
     else {
       currKey = (*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry));
       if(*(int*)value1 < *(int*)currKey) {
-        for(int j=joker; j >= i; j--) {
+        for(int j=**data; j >= i; j--) {
             memcpy(*data + 2*sizeof(int) + j*(sizeOfKey + sizeOfEntry), *data + 2*sizeof(int) + (j-1)*(sizeOfKey + sizeOfEntry), sizeOfKey+sizeOfEntry);
         }
         memcpy(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry), (int*)value1, sizeOfKey);
         memcpy(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry) + sizeOfKey, value2, sizeOfEntry);
-        joker++;
-        memcpy(*data, &joker, sizeof(int));
+        **data = **data + 1;
         return;
       }
     }
   }
 
-  if(!joker) {
+  if(!**data) {
     memcpy(*data + 2*sizeof(int), value1, sizeOfKey);
     memcpy(*data + 2*sizeof(int) + sizeOfKey, value2, sizeOfEntry);
   }
   else {
-    memcpy(*data + 2*sizeof(int) + joker*(sizeOfKey + sizeOfEntry), value1, sizeOfKey);
-    memcpy(*data + 2*sizeof(int) + joker*(sizeOfKey + sizeOfEntry) + sizeOfKey, value2, sizeOfEntry);
+    memcpy(*data + 2*sizeof(int) + (**data)*(sizeOfKey + sizeOfEntry), value1, sizeOfKey);
+    memcpy(*data + 2*sizeof(int) + (**data)*(sizeOfKey + sizeOfEntry) + sizeOfKey, value2, sizeOfEntry);
   }
 
-  joker++;
-  memcpy(*data, &joker, sizeof(int));
+  **data = **data + 1;
 }
 
 int getDataBlock(int fileDesc, int root, int depth, void* key, char typeOfKey, int sizeOfKey) {
@@ -230,12 +221,11 @@ int getDataBlock(int fileDesc, int root, int depth, void* key, char typeOfKey, i
 int getBlockNumber(char* data, void* key, char typeOfKey, int sizeOfKey) {
 
   void* tmpKey;
-  int block_num, joker;
+  int block_num;
 
-  joker = *data;
-  for(int i=0; i<=joker; i++) {
+  for(int i=0; i<=*data; i++) {
     block_num = *(data + (i + 1)*sizeof(int) + i*sizeOfKey);
-    // if(joker) {
+    // if(*data) {
     //   tmpKey = (data + (i + 2)*(sizeof(int) + i*sizeOfKey));
     //   if(compareKeys(key, tmpKey, typeOfKey, sizeOfKey)) {
     //     break;
@@ -295,7 +285,7 @@ void AM_Close() {
 
 int printBlock2(int fileDesc) {
 
-  int sizeOfKey, sizeOfEntry, joker;
+  int sizeOfKey, sizeOfEntry;
   char typeOfKey, typeOfEntry;
   char *data;
   BF_Block *mBlock;
@@ -311,9 +301,8 @@ int printBlock2(int fileDesc) {
 
   CALL_BF(BF_GetBlock(fileDesc, 2, mBlock));
   data = BF_Block_GetData(mBlock);
-  joker = *data;
 
-  for(int i=0; i < joker; i++) {
+  for(int i=0; i < *data; i++) {
     if(typeOfKey == STRING) {
       printf("KEY: %s\n", (char*)(data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry)));
     }
