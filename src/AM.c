@@ -45,6 +45,7 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
   memcpy(data + 4*sizeof(char) + 3*sizeof(int), &attrLength2, sizeof(int));
 
   *(data + 4*sizeof(char) + 4*sizeof(int)) = (BF_BLOCK_SIZE - 2*sizeof(int)) / (attrLength1 + attrLength2);
+  *(data + 4*sizeof(char) + 5*sizeof(int)) = (BF_BLOCK_SIZE - 2*sizeof(int)) / (sizeof(int) + attrLength1);
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
 
@@ -105,7 +106,7 @@ int AM_CloseIndex (int fileDesc) {
 
 int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
 
-  int block_num, root, depth, sizeOfKey, sizeOfEntry, maxRecords, count = 0;
+  int block_num, root, depth, sizeOfKey, sizeOfEntry, maxRecords, maxKeys, count = 0;
   char typeOfKey, typeOfEntry;
   char *data;
   BF_Block *mBlock;
@@ -120,6 +121,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
   typeOfEntry = *(data +3*sizeof(char) + 3*sizeof(int));
   sizeOfEntry = *(data + 4*sizeof(char) + 3*sizeof(int));
   maxRecords = *(data + 4*sizeof(char) + 4*sizeof(int));
+  maxKeys = *(data + 4*sizeof(char) + 5*sizeof(int));
   CALL_BF(BF_UnpinBlock(mBlock));
 
   block_num = getDataBlock(fileDesc, root,  depth, value1, typeOfKey, sizeOfKey);
@@ -130,19 +132,130 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
     insertEntryAndSort(&data, typeOfKey, sizeOfKey, typeOfEntry, sizeOfEntry, value1, value2);
   }
   else {
-    reBalance();
+    reBalance(fileDesc, depth, root, maxKeys, typeOfKey, sizeOfKey, typeOfEntry, sizeOfEntry, value1);
+    CALL_BF(BF_UnpinBlock(mBlock));
+    block_num = getDataBlock(fileDesc, root,  depth, value1, typeOfKey, sizeOfKey);
+    CALL_BF(BF_GetBlock(fileDesc, block_num, mBlock));
+    data = BF_Block_GetData(mBlock);
+    insertEntryAndSort(&data, typeOfKey, sizeOfKey, typeOfEntry, sizeOfEntry, value1, value2);
   }
 
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
   BF_Block_Destroy(&mBlock);
 
-  printBlock2(fileDesc);
   return AME_OK;
 }
 
-void reBalance() {
-  
+int reBalance(int fileDesc, int depth, int root, int maxKeys, char typeOfKey, int sizeOfKey, char typeOfEntry, int sizeOfEntry, void* Key) {
+
+  void* newKey;
+  int block_num = 0;
+  char *data, *newData;
+  BF_Block *mBlock, *newBlock;
+  BF_Block_Init(&mBlock);
+  BF_Block_Init(&newBlock);
+
+
+  CALL_BF(BF_GetBlock(fileDesc, root, mBlock));
+  data = BF_Block_GetData(mBlock);
+
+  if(depth == 0) {
+    CALL_BF(BF_AllocateBlock(fileDesc, newBlock));
+    CALL_BF(BF_GetBlockCounter(fileDesc, &block_num));
+    newData = BF_Block_GetData(newBlock);
+    memset(newData, 0, BF_BLOCK_SIZE);
+
+    if(*data < maxKeys) {
+
+      char *oldData;
+      BF_Block *oldBlock;
+      BF_Block_Init(&oldBlock);
+
+      CALL_BF(BF_GetBlock(fileDesc, getBlockNumber(data, Key, typeOfKey, sizeOfKey), oldBlock));
+      oldData = BF_Block_GetData(oldBlock);
+
+      memcpy(newData + 2*sizeof(int), oldData + 2*sizeof(int) + ((*oldData)/2)*(sizeOfEntry + sizeOfKey), (*oldData - (*oldData)/2)*(sizeOfEntry + sizeOfKey));
+      *newData = *oldData - *oldData/2;
+      memset(oldData + 2*sizeof(int) + ((*oldData)/2)*(sizeOfEntry + sizeOfKey), 0, *newData*(sizeOfKey + sizeOfEntry));
+      *oldData = (*oldData - *newData);
+
+      newKey = (newData + 2*sizeof(int));
+      block_num--;
+
+      for(int i=0; i < *data; i++) {
+        if(compareKeys(newKey, data + (i + 2)*sizeof(int) + i*sizeOfKey, typeOfKey, sizeOfKey)) {
+          for(int j=*data; j>=i; j--) {
+            memcpy(data + (j + 2)*sizeof(int) + j*sizeOfKey, data + (j + 1)*sizeof(int) + (j-1)*sizeOfKey, sizeof(int) + sizeOfKey);
+          }
+          memcpy(data + (i+2)*sizeof(int) + i*sizeOfKey, newKey, sizeOfKey);
+          memcpy(data + (i+2)*sizeof(int) + (i+1)*sizeOfKey, &block_num, sizeof(int));
+          break;
+        }
+        else {
+          if(i == *data - 1) {
+            memcpy(data + (i+3)*sizeof(int) + (i+1)*sizeOfKey, newKey, sizeOfKey);
+            memcpy(data + (i+3)*sizeof(int) + (i+2)*sizeOfKey, &block_num, sizeof(int));
+          }
+        }
+      }
+
+      if(*data == 0) {
+        memcpy(data + 2*sizeof(int), newKey, sizeOfKey);
+        memcpy(data + 2*sizeof(int) + sizeOfKey, &block_num, sizeof(int));
+      }
+      *data = *data + 1;
+
+      BF_Block_SetDirty(newBlock);
+      BF_Block_SetDirty(oldBlock);
+      CALL_BF(BF_UnpinBlock(oldBlock));
+      BF_Block_Destroy(&oldBlock);
+    }
+    else {
+
+      void* rootKey;
+      char *rootData;
+      BF_Block *rootBlock;
+      BF_Block_Init(&rootBlock);
+
+      printIndexblock(fileDesc, 1);
+
+      memcpy(newData + sizeof(int), data + (maxKeys/2 + 2)*sizeof(int) + (maxKeys/2 + 1)*sizeOfKey, (maxKeys/2 + 2)*sizeof(int) + (maxKeys/2 + 1)*sizeOfKey);
+      *newData = maxKeys - maxKeys/2 - 1;
+      rootKey = (data + (maxKeys/2 + 2)*sizeof(int) + (maxKeys/2)*sizeOfKey);
+      memset(data + (maxKeys/2 + 2)*sizeof(int) + (maxKeys/2)*sizeOfKey, 0, (maxKeys/2 + 2)*sizeof(int) + (maxKeys/2 + 1)*sizeOfKey);
+      *data = *data - *newData - 1;
+      BF_Block_SetDirty(newBlock);
+      BF_Block_SetDirty(mBlock);
+
+      CALL_BF(BF_UnpinBlock(mBlock));
+      CALL_BF(BF_UnpinBlock(newBlock));
+
+      printIndexblock(fileDesc, 1);
+      printIndexblock(fileDesc, block_num-1);
+
+      BF_Block_Destroy(&rootBlock);
+
+      return 0;
+    }
+
+    CALL_BF(BF_UnpinBlock(mBlock));
+    CALL_BF(BF_UnpinBlock(newBlock));
+    BF_Block_Destroy(&mBlock);
+    BF_Block_Destroy(&newBlock);
+
+    return 0;
+  }
+
+  block_num = reBalance(fileDesc, depth-1, getBlockNumber(data, Key, typeOfKey, sizeOfKey), maxKeys, typeOfKey, sizeOfKey, typeOfEntry, sizeOfEntry, Key);
+  if(!block_num) {
+
+  }
+
+  CALL_BF(BF_UnpinBlock(mBlock));
+
+  BF_Block_Destroy(&mBlock);
+  BF_Block_Destroy(&newBlock);
 }
 
 void insertEntryAndSort(char** data, char typeOfKey, int sizeOfKey, char typeOfEntry, int sizeOfEntry, void* value1, void* value2) {
@@ -152,7 +265,7 @@ void insertEntryAndSort(char** data, char typeOfKey, int sizeOfKey, char typeOfE
   for(int i=0; i < **data; i++) {
     if(typeOfKey == STRING) {
       currKey = (char*)(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry));
-      if(strcmp((char*)value1, currKey) < 0) {
+      if(strcmp((char*)value1, (char*)currKey) < 0) {
         for(int j=**data; j >= i; j--) {
             memcpy(*data + 2*sizeof(int) + j*(sizeOfKey + sizeOfEntry), *data + 2*sizeof(int) + (j-1)*(sizeOfKey + sizeOfEntry), sizeOfKey+sizeOfEntry);
         }
@@ -164,7 +277,7 @@ void insertEntryAndSort(char** data, char typeOfKey, int sizeOfKey, char typeOfE
     }
     else if(typeOfKey == FLOAT) {
       currKey = (*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry));
-      if(*(float*)value1 < *(float *)currKey) {
+      if(*(float*)value1 < *(float*)currKey) {
         for(int j=**data; j >= i; j--) {
             memcpy(*data + 2*sizeof(int) + j*(sizeOfKey + sizeOfEntry), *data + 2*sizeof(int) + (j-1)*(sizeOfKey + sizeOfEntry), sizeOfKey+sizeOfEntry);
         }
@@ -183,20 +296,12 @@ void insertEntryAndSort(char** data, char typeOfKey, int sizeOfKey, char typeOfE
         memcpy(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry), (int*)value1, sizeOfKey);
         memcpy(*data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry) + sizeOfKey, value2, sizeOfEntry);
         **data = **data + 1;
-        return;
+          return;
       }
     }
   }
-
-  if(!**data) {
-    memcpy(*data + 2*sizeof(int), value1, sizeOfKey);
-    memcpy(*data + 2*sizeof(int) + sizeOfKey, value2, sizeOfEntry);
-  }
-  else {
-    memcpy(*data + 2*sizeof(int) + (**data)*(sizeOfKey + sizeOfEntry), value1, sizeOfKey);
-    memcpy(*data + 2*sizeof(int) + (**data)*(sizeOfKey + sizeOfEntry) + sizeOfKey, value2, sizeOfEntry);
-  }
-
+  memcpy(*data + 2*sizeof(int) + (**data)*(sizeOfKey + sizeOfEntry), value1, sizeOfKey);
+  memcpy(*data + 2*sizeof(int) + (**data)*(sizeOfKey + sizeOfEntry) + sizeOfKey, value2, sizeOfEntry);
   **data = **data + 1;
 }
 
@@ -225,12 +330,15 @@ int getBlockNumber(char* data, void* key, char typeOfKey, int sizeOfKey) {
 
   for(int i=0; i<=*data; i++) {
     block_num = *(data + (i + 1)*sizeof(int) + i*sizeOfKey);
-    // if(*data) {
-    //   tmpKey = (data + (i + 2)*(sizeof(int) + i*sizeOfKey));
-    //   if(compareKeys(key, tmpKey, typeOfKey, sizeOfKey)) {
-    //     break;
-    //   }
-    // }
+    if(*data) {
+      if(i == *data) {
+        break;
+      }
+      tmpKey = (data + (i + 2)*sizeof(int) + i*sizeOfKey);
+      if(compareKeys(key, tmpKey, typeOfKey, sizeOfKey)) {
+        break;
+      }
+    }
   }
 
   return block_num;
@@ -239,7 +347,6 @@ int getBlockNumber(char* data, void* key, char typeOfKey, int sizeOfKey) {
 int compareKeys(void* key, void* mKey, char typeOfKey, int sizeOfKey) {
 
   if(typeOfKey == STRING) {
-    printf("%s", (char*)mKey);
     if(strcmp((char*)key, (char*)mKey) < 0) {
       return 1;
     }
@@ -283,7 +390,42 @@ void AM_Close() {
   return;
 }
 
-int printBlock2(int fileDesc) {
+int printIndexblock(int fileDesc, int block_num) {
+  int sizeOfKey;
+  char typeOfKey;
+  char *data;
+  BF_Block *mBlock;
+  BF_Block_Init(&mBlock);
+
+  CALL_BF(BF_GetBlock(fileDesc, 0, mBlock));
+  data = BF_Block_GetData(mBlock);
+  typeOfKey = *(data + 2*sizeof(char) + 2*sizeof(int));
+  sizeOfKey = *(data + 3*sizeof(char) + 2*sizeof(int));
+  CALL_BF(BF_UnpinBlock(mBlock));
+
+  CALL_BF(BF_GetBlock(fileDesc, block_num, mBlock));
+  data = BF_Block_GetData(mBlock);
+
+  printf("INDEX: %d\n", *(data + sizeof(int)));
+  for(int i=0; i < *data; i++) {
+    if(typeOfKey == STRING) {
+      printf("KEY: %s\n", (char*)(data + (i + 2)*sizeof(int) + i*sizeOfKey));
+    }
+    else if (typeOfKey == FLOAT) {
+      printf("KEY: %f\n", *(float*)(data + (i + 2)*sizeof(int) + i*sizeOfKey));
+    }
+    else {
+      printf("KEY: %d\n", *(int*)(data + (i + 2)*sizeof(int) + (i)*sizeOfKey));
+    }
+    printf("INDEX: %d\n", *(data + (i + 2)*sizeof(int) + (i+1)*sizeOfKey));
+  }
+  printf("\n");
+
+  CALL_BF(BF_UnpinBlock(mBlock));
+  BF_Block_Destroy(&mBlock);
+}
+
+int printBlock(int fileDesc, int block_num) {
 
   int sizeOfKey, sizeOfEntry;
   char typeOfKey, typeOfEntry;
@@ -299,7 +441,7 @@ int printBlock2(int fileDesc) {
   sizeOfEntry = *(data + 4*sizeof(char) + 3*sizeof(int));
   CALL_BF(BF_UnpinBlock(mBlock));
 
-  CALL_BF(BF_GetBlock(fileDesc, 2, mBlock));
+  CALL_BF(BF_GetBlock(fileDesc, block_num, mBlock));
   data = BF_Block_GetData(mBlock);
 
   for(int i=0; i < *data; i++) {

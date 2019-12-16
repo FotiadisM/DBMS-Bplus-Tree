@@ -44,6 +44,18 @@ int AM_InsertEntry (
   void *value2 /* τιμή του δεύτερου πεδίου της εγγραφής προς εισαγωγή */
 );
 
+int reBalance(
+  int fileDesc,
+  int depth,
+  int root,
+  int maxKeys,
+  char typeOfKey,
+  int sizeOfKey,
+  char typeOfEntry,
+  int sizeOfEntry,
+  void* Key
+);
+
 void insertEntryAndSort (
   char** data,
   char typeOfKey,
@@ -77,12 +89,14 @@ int compareKeys(
   int sizeOfKey
 );
 
-int printBlock2(
-  int fileDesc
-  // char typeOfKey,
-  // int sizeOfKey,
-  // char typeOfEntry,
-  // int sizeOfEntry
+int printIndexblock(
+  int fileDesc,
+  int block_num
+);
+
+int printBlock(
+  int fileDesc,
+  int block_num
 );
 
 int AM_OpenIndexScan(

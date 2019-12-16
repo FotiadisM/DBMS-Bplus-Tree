@@ -27,18 +27,18 @@ void insertEntries(int eNentry, int eAentry, int eSentry, int eDentry, char* ena
 		sprintf(errStr, "Error in AM_InsertEntry called on %s \n", empName);
 		AM_PrintError(errStr);
 	}
-	if (AM_InsertEntry(eAentry, (void *) &eage, ename) != AME_OK) {
-		sprintf(errStr, "Error in AM_InsertEntry called on %s \n", empAge);
-		AM_PrintError(errStr);
-	}
-	if (AM_InsertEntry(eSentry, (void *) &esal, ename) != AME_OK) {
-		sprintf(errStr, "Error in AM_InsertEntry called on %s \n", empSal);
-		AM_PrintError(errStr);
-	}
-	if (AM_InsertEntry(eDentry, (void *) edname, &esal) != AME_OK) {
-		sprintf(errStr, "Error in AM_InsertEntry called on %s \n", empDname);
-		AM_PrintError(errStr);
-	}
+	// if (AM_InsertEntry(eAentry, (void *) &eage, ename) != AME_OK) {
+	// 	sprintf(errStr, "Error in AM_InsertEntry called on %s \n", empAge);
+	// 	AM_PrintError(errStr);
+	// }
+	// if (AM_InsertEntry(eSentry, (void *) &esal, ename) != AME_OK) {
+	// 	sprintf(errStr, "Error in AM_InsertEntry called on %s \n", empSal);
+	// 	AM_PrintError(errStr);
+	// }
+	// if (AM_InsertEntry(eDentry, (void *) edname, &esal) != AME_OK) {
+	// 	sprintf(errStr, "Error in AM_InsertEntry called on %s \n", empDname);
+	// 	AM_PrintError(errStr);
+	// }
 
 }
 
@@ -1029,14 +1029,14 @@ int main() {
 	insertEntries(eNentry, eAentry, eSentry, eDentry, ename, eage, esal,
 			edname, ++recordid);
 
-	/* -----------------------------------------------------------------------------*/
+	// /* -----------------------------------------------------------------------------*/
 
-	strcpy(ename, "LAMPROPOYLOY XRISTINA");
-	eage = 31;
-	esal = 399.0;
-	strcpy(edname, "FROUTA");
-	insertEntries(eNentry, eAentry, eSentry, eDentry, ename, eage, esal,
-			edname, ++recordid);
+	// strcpy(ename, "LAMPROPOYLOY XRISTINA");
+	// eage = 31;
+	// esal = 399.0;
+	// strcpy(edname, "FROUTA");
+	// insertEntries(eNentry, eAentry, eSentry, eDentry, ename, eage, esal,
+	// 		edname, ++recordid);
 
 
 	/* -----------------------------------------------------------------------------*/
