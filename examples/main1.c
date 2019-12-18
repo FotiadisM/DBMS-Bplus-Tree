@@ -1022,14 +1022,14 @@ int main() {
 
 	/* -----------------------------------------------------------------------------*/
 
-	strcpy(ename, "PAPASWTHRIOY KYRIAKOS");
-	eage = 46;
-	esal = 348.6;
-	strcpy(edname, "TYRIA");
-	insertEntries(eNentry, eAentry, eSentry, eDentry, ename, eage, esal,
-			edname, ++recordid);
+	// strcpy(ename, "PAPASWTHRIOY KYRIAKOS");
+	// eage = 46;
+	// esal = 348.6;
+	// strcpy(edname, "TYRIA");
+	// insertEntries(eNentry, eAentry, eSentry, eDentry, ename, eage, esal,
+	// 		edname, ++recordid);
 
-	// /* -----------------------------------------------------------------------------*/
+	// // /* -----------------------------------------------------------------------------*/
 
 	// strcpy(ename, "LAMPROPOYLOY XRISTINA");
 	// eage = 31;

@@ -15,8 +15,21 @@ extern int AM_errno;
 #define LESS_THAN_OR_EQUAL 5
 #define GREATER_THAN_OR_EQUAL 6
 
-void AM_Init( void );
+typedef struct opnFile {
+  int fileDesc;
+  char* fileName;
+} opnFileInfo;
 
+typedef opnFileInfo* opnFileInfoPtr;
+
+typedef struct scnFile {
+  void* value;
+  int scanDesc, op;
+} scnFileInfo;
+
+typedef scnFileInfo* scnFileInfoPtr; 
+
+void AM_Init( void );
 
 int AM_CreateIndex(
   char *fileName, /* όνομα αρχείου */

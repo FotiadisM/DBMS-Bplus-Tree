@@ -6,7 +6,13 @@
 #include "AM.h"
 #include "defn.h"
 
+#define MAXOPENFILES 20
+
 int AM_errno = AME_OK;
+
+int opnFilesCounter, scnFilescounter;
+opnFileInfoPtr opnArray;
+scnFileInfoPtr scnArray;
 
 #define CALL_BF(call)       \
 {                           \
@@ -19,6 +25,15 @@ int AM_errno = AME_OK;
 
 void AM_Init() {
   BF_Init(LRU);
+
+  opnFilesCounter = 0; scnFilescounter = 0;
+  opnArray = malloc(MAXOPENFILES*sizeof(opnFileInfo));
+  scnArray = malloc(MAXOPENFILES*sizeof(scnFileInfo));
+
+  for(int i=0; i < MAXOPENFILES; i++) {
+    opnArray[i].fileDesc = -1;
+    scnArray[i].scanDesc = -1;
+  }
 }
 
 int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrType2, int attrLength2) {
@@ -91,6 +106,9 @@ int AM_OpenIndex (char *fileName) {
     return AME_EOF;
   }
 
+  opnArray[opnFilesCounter].fileDesc = fileDesc;
+  opnFilesCounter++;
+
   CALL_BF(BF_UnpinBlock(mBlock));
   BF_Block_Destroy(&mBlock);
 
@@ -101,7 +119,15 @@ int AM_CloseIndex (int fileDesc) {
 
   CALL_BF(BF_CloseFile(fileDesc));
 
-  return AME_OK;
+  for(int i=0; i < MAXOPENFILES; i++) {
+    if(opnArray[i].fileDesc == fileDesc) {
+      opnArray[i].fileDesc = -1;
+      opnFilesCounter--;
+      return AME_OK;
+    }
+  }
+
+  return AME_EOF;
 }
 
 int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
@@ -183,6 +209,8 @@ int reBalance(int fileDesc, int depth, int root, int maxKeys, char typeOfKey, in
       newKey = (newData + 2*sizeof(int));
       block_num--;
 
+      *(oldData + sizeof(int)) = block_num;
+
       for(int i=0; i < *data; i++) {
         if(compareKeys(newKey, data + (i + 2)*sizeof(int) + i*sizeOfKey, typeOfKey, sizeOfKey)) {
           for(int j=*data; j>=i; j--) {
@@ -208,15 +236,13 @@ int reBalance(int fileDesc, int depth, int root, int maxKeys, char typeOfKey, in
 
       BF_Block_SetDirty(newBlock);
       BF_Block_SetDirty(oldBlock);
+      BF_Block_SetDirty(mBlock);
       CALL_BF(BF_UnpinBlock(oldBlock));
       BF_Block_Destroy(&oldBlock);
     }
     else {
 
       void* rootKey;
-      char *rootData;
-      BF_Block *rootBlock;
-      BF_Block_Init(&rootBlock);
 
       printIndexblock(fileDesc, 1);
 
@@ -228,13 +254,16 @@ int reBalance(int fileDesc, int depth, int root, int maxKeys, char typeOfKey, in
       BF_Block_SetDirty(newBlock);
       BF_Block_SetDirty(mBlock);
 
-      CALL_BF(BF_UnpinBlock(mBlock));
+      BF_Block_SetDirty(newBlock);
+      BF_Block_SetDirty(mBlock);
       CALL_BF(BF_UnpinBlock(newBlock));
+      CALL_BF(BF_UnpinBlock(mBlock));
+
+      BF_Block_Destroy(&mBlock);
+      BF_Block_Destroy(&newBlock);
 
       printIndexblock(fileDesc, 1);
       printIndexblock(fileDesc, block_num-1);
-
-      BF_Block_Destroy(&rootBlock);
 
       return 0;
     }
@@ -367,17 +396,85 @@ int compareKeys(void* key, void* mKey, char typeOfKey, int sizeOfKey) {
 }
 
 int AM_OpenIndexScan(int fileDesc, int op, void *value) {
+
+  int exist=0;
+
+  if(scnFilescounter == MAXOPENFILES) {
+    return AME_EOF;
+  }
+  for(int i=0; i < MAXOPENFILES; i++) {
+    if(opnArray[i].fileDesc == fileDesc) {
+      exist = 1;
+      break;
+    }
+  }
+  if(!exist) {
+    return AME_EOF;
+  }
+
+  scnArray[scnFilescounter].scanDesc = fileDesc;
+  scnArray[scnFilescounter].op = op;
+  scnArray[scnFilescounter].value = value;
+  scnFilescounter++;
+
+
   return AME_OK;
 }
 
 
 void *AM_FindNextEntry(int scanDesc) {
-	
+
+  void* value;
+  int op, block_num, exists = 0, root, depth, typeOfKey, sizeOfKey, typeOfEntry, sizeOfEntry, maxRecords, maxKeys;
+  char *data;
+  BF_Block *mBlock;
+  BF_Block_Init(&mBlock);
+
+  for(int i=0; i < MAXOPENFILES; i++) {
+    if(scnArray[i].scanDesc == scanDesc) {
+      value = scnArray[i].value;
+      op = scnArray[i].op;
+      exists = 1;
+    }
+  }
+  if(!exists) {
+    AM_errno = AME_EOF;
+    return NULL;
+  }
+
+  CALL_BF(BF_GetBlock(scanDesc, 0, mBlock));
+  data = BF_Block_GetData(mBlock);
+  root = *(data + 2*sizeof(char));
+  depth = *(data + 2*sizeof(char) + sizeof(int));
+  typeOfKey = *(data + 2*sizeof(char) + 2*sizeof(int));
+  sizeOfKey = *(data + 3*sizeof(char) + 2*sizeof(int));
+  typeOfEntry = *(data +3*sizeof(char) + 3*sizeof(int));
+  sizeOfEntry = *(data + 4*sizeof(char) + 3*sizeof(int));
+  maxRecords = *(data + 4*sizeof(char) + 4*sizeof(int));
+  maxKeys = *(data + 4*sizeof(char) + 5*sizeof(int));
+  CALL_BF(BF_UnpinBlock(mBlock));
+
+  
+
+
+
+  BF_Block_Destroy(&mBlock);
 }
 
 
 int AM_CloseIndexScan(int scanDesc) {
-  return AME_OK;
+
+  for(int i=0; i < MAXOPENFILES; i++) {
+    if(scnArray[i].scanDesc == scanDesc) {
+      scnArray[i].scanDesc = -1;
+      scnArray[i].op = 0;
+      scnArray[i].value = NULL;
+      scnFilescounter--;
+
+      return AME_OK;
+    }
+  }
+  return AME_EOF;
 }
 
 
@@ -387,6 +484,10 @@ void AM_PrintError(char *errString) {
 
 void AM_Close() {
   BF_Close();
+
+  free(opnArray);
+  free(scnArray);
+
   return;
 }
 
@@ -444,6 +545,7 @@ int printBlock(int fileDesc, int block_num) {
   CALL_BF(BF_GetBlock(fileDesc, block_num, mBlock));
   data = BF_Block_GetData(mBlock);
 
+  printf("NEXT BLOCK: %d\n", *(data + sizeof(int)));
   for(int i=0; i < *data; i++) {
     if(typeOfKey == STRING) {
       printf("KEY: %s\n", (char*)(data + 2*sizeof(int) + i*(sizeOfKey + sizeOfEntry)));
