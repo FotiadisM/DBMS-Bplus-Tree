@@ -15,16 +15,29 @@ extern int AM_errno;
 #define LESS_THAN_OR_EQUAL 5
 #define GREATER_THAN_OR_EQUAL 6
 
+typedef struct rblncInfo {
+  int block_num;
+  void* newKey;
+} rblncInfo;
+
 typedef struct opnFile {
   int fileDesc;
-  char* fileName;
+  char** fileName;
+  int root;
+  int depth;
+  int maxEntries, maxKeys;
+  char typeOfKey, typeOfEntry;
+  int sizeOfKey, sizeOfEntry;
 } opnFileInfo;
 
 typedef opnFileInfo* opnFileInfoPtr;
 
 typedef struct scnFile {
   void* value;
-  int scanDesc, op;
+  int scanDesc;
+  int op;
+  int key_block, starting_block, ending_block;
+  int printedCounter;
 } scnFileInfo;
 
 typedef scnFileInfo* scnFileInfoPtr; 
@@ -57,9 +70,10 @@ int AM_InsertEntry (
   void *value2 /* τιμή του δεύτερου πεδίου της εγγραφής προς εισαγωγή */
 );
 
-int reBalance(
+rblncInfo reBalance(
   int fileDesc,
   int depth,
+  int initialDepth,
   int root,
   int maxKeys,
   char typeOfKey,
@@ -100,6 +114,19 @@ int compareKeys(
   void* mKey,
   char typeOfKey,
   int sizeOfKey
+);
+
+int compareKeys2(
+  void* key,
+  void* mKey,
+  int typeOfKey
+);
+
+int os_comparison(
+  int op,
+  void* key,
+  void* mKey,
+  int typeOfKey
 );
 
 int printIndexblock(
